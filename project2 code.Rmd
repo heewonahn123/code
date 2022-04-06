@@ -1,0 +1,253 @@
+---
+title: "Project2"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r,warning=FALSE,message=FALSE}
+library(tidyverse)
+library(jpeg)
+library(png)
+library(dplyr)
+library(tibble)
+library(ggplot2)
+
+```
+
+
+
+
+# __Question1__:Do republican and democratic state have different number of infected people by covid? 
+# find the linear equation and compare them 
+
+
+
+This is the plot showing  total percentage of people who infected by Covid19 until 2020.11.29 and I can see more than 30% of people in Delaware are infected by covid
+but is it shown that most of republican states have higher rate of infection compared to democratic states.
+
+
+
+```{r echo=FALSE}
+covid=read.csv("covid.csv")
+rcovid=covid[,-c(1,2,4)] %>% group_by(State) %>% summarise_all(list(mean))
+rcovid=rcovid[-1,]
+for( i in 1:51){
+rcovid[i,3:679]=rcovid[i,3:679]/as.numeric(rcovid[i,2])
+}
+rcovid2=rcovid[,-2]
+date=seq(as.Date('2020/01/23', '%Y/%m/%d'), +   as.Date('2021/11/29', '%Y/%m/%d'),+1)
+last=data.frame(x=rcovid$State,y=rcovid2$X2021.11.29)
+last$z=c("republic","republic","republic","republic","democratic","democratic","democratic","democratic","democratic","neutral","republic","democratic","neutral","republic","democratic","republic","republic","republic","republic","democratic","democratic","democratic","democratic","democratic","republic","republic","republic","republic","republic","republic","democratic","democratic","democratic","democratic","democratic","neutral","republic","democratic","democratic","democratic","republic","republic","republic","republic","republic","democratic","democratic","democratic","democratic","republic","republic")
+ggplot() +  geom_point(mapping=aes(x=x, y=y, color=z), data=last)+xlab("State")+ ylab("percantage") + ggtitle("cumulative percantage until 2021.11.29") 
+
+
+```
+
+
+
+
+
+I found in  Google that shows summary of results of the 2008, 2012, 2016, and 2020 presidential elections by state
+
+red shows states carried by Republicans in all four elections   
+
+orange shows states carried by Republicans in three of the four elections  
+
+purple shows states carried by  each party twice in the four elections  
+
+sky blue shows states carried by the Democrats in three of the four elections 
+
+blue shows the states carried by  Democrats in all four elections
+
+```{r echo=FALSE}
+my_image = readPNG("state.png")
+plot(1:2, type='n', main="", xlab="x", ylab="y")
+lim <- par()
+rasterImage(my_image, 
+            xleft=1, xright=2, 
+            ybottom=1, ytop=2)
+grid()
+```
+
+
+and shown by the plot,
+
+democratic states are:WA,OR,CA,NV,HI,CO,NM,MN,WI,IL,MI,PA,NY,NJ,CT,MA,RI,ME,VT,NH,VA,MD,DE
+
+republican states are:ID,MT,WY,UT,AZ,AK,ND,SD,NE,KS,OK,TX,LA,AR,MO,KY,TN,MS,AL,GA,SC,NC,WV,IN
+
+and IA,FL,OH are neutral states
+
+
+
+I found a .csv file in goggle that shows Cumulative infection rate per every cities in U.S 
+```{r echo=FALSE}
+covid=read.csv("covid.csv")
+str(covid)
+```
+and this is structure of original data. 
+
+At first, I added all the people infected by Covid, and divided by population of each cities to find out percentage. 
+and I classified  all the cities by states and dates by once in a month.
+
+
+```{r echo=FALSE}
+
+coviddata=covid[,c("State","StateFIPS","population"
+,"X2020.01.23","X2020.02.23","X2020.03.23","X2020.04.23"
+,"X2020.05.23","X2020.06.23","X2020.07.23","X2020.08.23","X2020.09.23","X2020.10.23"
+,"X2020.11.23","X2020.12.23","X2021.01.23","X2021.02.23","X2021.03.23","X2021.04.23","X2021.05.23"
+,"X2021.06.23","X2021.07.23","X2021.08.23","X2021.09.23","X2021.10.23","X2021.11.23")]
+percentage=100
+coviddata2 = coviddata %>% group_by(State) %>% summarize(X2020.01.23=sum(X2020.01.23,na.rm=T),                                                                                   X2020.02.23=sum(X2020.02.23,na.rm=T),
+                                                         X2020.03.23=sum(X2020.03.23,na.rm=T),
+                                                         X2020.04.23=sum(X2020.04.23,na.rm=T),
+                                                         X2020.05.23=sum(X2020.05.23,na.rm=T),
+                                                         X2020.06.23=sum(X2020.06.23,na.rm=T),
+                                                         X2020.07.23=sum(X2020.07.23,na.rm=T),
+                                                         X2020.08.23=sum(X2020.08.23,na.rm=T),
+                                                         X2020.09.23=sum(X2020.09.23,na.rm=T),
+                                                         X2020.10.23=sum(X2020.10.23,na.rm=T),
+                                                         X2020.11.23=sum(X2020.11.23,na.rm=T),
+                                                         X2020.12.23=sum(X2020.12.23,na.rm=T),
+                                                         X2021.01.23=sum(X2021.01.23,na.rm=T),
+                                                         X2021.02.23=sum(X2021.02.23,na.rm=T),
+                                                         X2021.03.23=sum(X2021.03.23,na.rm=T),
+                                                         X2021.04.23=sum(X2021.04.23,na.rm=T),
+                                                         X2021.05.23=sum(X2021.05.23,na.rm=T),
+                                                         X2021.06.23=sum(X2021.06.23,na.rm=T),
+                                                         X2021.07.23=sum(X2021.07.23,na.rm=T),
+                                                         X2021.08.23=sum(X2021.08.23,na.rm=T),
+                                                         X2021.09.23=sum(X2021.09.23,na.rm=T),
+                                                         X2021.10.23=sum(X2021.10.23,na.rm=T),
+                                                         X2021.11.23=sum(X2021.11.23,na.rm=T),
+                                                         population=sum(population,na.rm=T)
+                                                        )  %>% mutate(a2020.01.23=X2020.01.23/population*percentage,
+                                                                      a2020.02.23=X2020.02.23/population*percentage,
+                                                                      a2020.03.23=X2020.03.23/population*percentage,
+                                                                      a2020.04.23=X2020.04.23/population*percentage,
+                                                                      a2020.05.23=X2020.05.23/population*percentage,
+                                                                      a2020.06.23=X2020.06.23/population*percentage,
+                                                                      a2020.07.23=X2020.07.23/population*percentage,
+                                                                      a2020.08.23=X2020.08.23/population*percentage,
+                                                                      a2020.09.23=X2020.09.23/population*percentage,
+                                                                      a2020.10.23=X2020.10.23/population*percentage,
+                                                                      a2020.11.23=X2020.11.23/population*percentage,
+                                                                      a2020.12.23=X2020.12.23/population*percentage,
+                                                                      a2021.01.23=X2021.01.23/population*percentage,
+                                                                      a2021.02.23=X2021.02.23/population*percentage,
+                                                                      a2021.03.23=X2021.03.23/population*percentage,
+                                                                      a2021.04.23=X2021.04.23/population*percentage,
+                                                                      a2021.05.23=X2021.05.23/population*percentage,
+                                                                      a2021.06.23=X2021.06.23/population*percentage,
+                                                                      a2021.07.23=X2021.07.23/population*percentage,
+                                                                      a2021.08.23=X2021.08.23/population*percentage,
+                                                                      a2021.09.23=X2021.09.23/population*percentage,
+                                                                      a2021.10.23=X2021.10.23/population*percentage,
+                                                                      a2021.11.23=X2021.11.23/population*percentage)
+coviddata2=coviddata2 %>% select(State,a2020.01.23,a2020.02.23,a2020.03.23,a2020.04.23,a2020.05.23,a2020.06.23,a2020.07.23,
+                      a2020.08.23,a2020.09.23,a2020.10.23,a2020.11.23,a2020.12.23,a2021.01.23,a2021.02.23,a2021.03.23,
+                      a2021.04.23,a2021.05.23,a2021.06.23,a2021.07.23,a2021.08.23,a2021.09.23,a2021.10.23,a2021.11.23)
+
+coviddata2=coviddata2[-1,]
+
+# found the percentage of population who infected by covid
+
+
+republic=coviddata2 %>% filter(State %in% c("AZ","AL","AK","AR","ID","IN","KS","KY","MS","MT","NE","ND","OK","SC","SD","UT","VA","WV","WY","TX","LA","MO","TN","GA","NC"))
+Democratic=coviddata2 %>% filter(State %in% c("CA","CO","CT","DC","DE","GA","HI","IL","MA","MD","ME","MI","MN","NH","NJ","NM","NV","NY","OR","PA","RI","VT","VA","WA","WI"))
+
+#FL,OH,IA are considered swing state so I'll not consider
+
+meanrepublic=republic %>% summarise(m20.01.23=mean(a2020.01.23),m20.02.03=mean(a2020.02.23),m20.03.23=mean(a2020.03.23),m20.04.23=mean(a2020.04.23),
+                       m20.05.23=mean(a2020.05.23),m20.06.23=mean(a2020.06.23),m20.07.23=mean(a2020.07.23),m20.08.23=mean(a2020.08.23),
+                       m20.09.23=mean(a2020.09.23),m20.10.23=mean(a2020.10.23),m20.11.23=mean(a2020.11.23),m20.12.23=mean(a2020.12.23),
+                       m21.01.23=mean(a2021.01.23),m21.02.23=mean(a2021.02.23),m21.03.23=mean(a2021.03.23),m21.04.23=mean(a2021.04.23),
+                       m21.05.23=mean(a2021.05.23),m21.06.23=mean(a2021.06.23),m21.07.23=mean(a2021.07.23),m21.08.23=mean(a2021.08.23),
+                       m21.09.23=mean(a2021.09.23),m21.10.23=mean(a2021.10.23),m21.11.23=mean(a2021.11.23))
+
+meandemocra= Democratic %>% summarise(m20.01.23=mean(a2020.01.23),m20.02.03=mean(a2020.02.23),m20.03.23=mean(a2020.03.23),m20.04.23=mean(a2020.04.23),
+                                    m20.05.23=mean(a2020.05.23),m20.06.23=mean(a2020.06.23),m20.07.23=mean(a2020.07.23),m20.08.23=mean(a2020.08.23),
+                                    m20.09.23=mean(a2020.09.23),m20.10.23=mean(a2020.10.23),m20.11.23=mean(a2020.11.23),m20.12.23=mean(a2020.12.23),
+                                    m21.01.23=mean(a2021.01.23),m21.02.23=mean(a2021.02.23),m21.03.23=mean(a2021.03.23),m21.04.23=mean(a2021.04.23),
+                                    m21.05.23=mean(a2021.05.23),m21.06.23=mean(a2021.06.23),m21.07.23=mean(a2021.07.23),m21.08.23=mean(a2021.08.23),
+                                    m21.09.23=mean(a2021.09.23),m21.10.23=mean(a2021.10.23),m21.11.23=mean(a2021.11.23))
+
+
+
+
+numberofmonth=1:23
+repub=as.numeric(meanrepublic[1,])
+demo=as.numeric(meandemocra[1,])
+
+re=data.frame(numberofmonth,repub)
+de=data.frame(numberofmonth,demo)
+```
+
+Now from the data I filtered by _republican_ state _democratic_ state, I found a linear equation and 
+tried to plot them together to see the difference of infection.
+
+```{r echo=FALSE}
+republicequation=lm(numberofmonth~repub,re);republicequation
+democraticequation=lm(numberofmonth~demo,de);democraticequation
+plot(de,ylim=c(0,17),type="p",xlab="month started from 2020.01.23",ylab="percentage of total population infected by covid",main="United States",col="blue",cex=.5)
+abline(lm(de$demo~de$numberofmonth),col="blue")
+par(new=TRUE)
+plot(re,ylim=c(0,17),type="p",xlab="month started from 2020.01.23",ylab="percentage of total population infected by covid",main="United states",col="red",cex=.5)
+abline(lm(re$repub~re$numberofmonth),col="red")
+```
+
+
+
+
+## __first conclusion__: It is clear by the plot that over 15% percent of people in republican states were infected by covid untill 2021.11.23 which is over about 3% than people in democratic states.
+
+
+
+
+
+
+# __Question2__:Why does number of people infected by covid started decreasing at certain moment? 
+# I guess it's because of vaccination, lets see my prediction is right and compare before vaccination and after vaccination.
+
+
+
+After finishing my first question, I was curious why number of people infected by covid looked decreased after 12~13 month.
+I thought it was because of the vaccine so approximate time people are benefited from vaccinated is about  "2021.01.23"
+by the plot I first made. 
+
+By the Goggle, since first vaccination started "2020.12.14" it looks quite reasonable to agree with my thought because vaccine works after 3 weeks. 
+
+
+Because I only need data of people who infected by Covid19 in __each days__ before vaccination and after vaccination, I used __non-cumulative data__ regardless of State. It only shows every day information that contains __average number of people infected in cities__.  
+
+
+```{r echo=FALSE}
+
+nocumlative=covid
+
+for (i in 682:8){
+  nocumlative[,i]=nocumlative[,i]-nocumlative[,i-1]
+}
+
+nocumlative=nocumlative[,8:682]
+
+sum=colMeans(nocumlative,na.rm=T)
+
+date=seq(as.Date('2020/01/25', '%Y/%m/%d'), +   as.Date('2021/11/29', '%Y/%m/%d'),+1)
+
+sum2=data.frame(x=date,y=as.numeric(sum))
+
+sum2$z=c(rep("before vaccine",365),rep("after vaccine",310))
+
+ggplot(sum2) + geom_line(aes(x = x, y = y, color=z), cex = 0.8, show.legend = T) + ggtitle("Covid infection") +xlab("Date") + ylab("average number of people infected in each cities")
+
+```
+
+
+## __second conclusion__: as shown by the plot, after "2021.01.23" number of people infected started to decrease because of vaccination.
+
+
+
+
