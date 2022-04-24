@@ -103,7 +103,9 @@ ass=c(sum(y.vec==1),sum(y.vec==0),loss,info,acc,err,sen,spc,auc )
 
 ass.fun=function(b.vec,x.mat,y.vec,c.val,wt){
   xb.vec=drop(cbind(1,x.mat)%*%b.vec)
+  xb.vec[xb.vec>100]=100 #이렇게해도 바뀌는게 없나?
   exb.vec=exp(xb.vec)
+  print(exb.vec)
   p.vec=exb.vec/(1+exb.vec)
   pred =as.numeric(p.vec>c.val);pred 
   loss=sum(-y.vec*xb.vec+log(1+exb.vec)) # 로그라이클리후드 
@@ -112,6 +114,9 @@ ass.fun=function(b.vec,x.mat,y.vec,c.val,wt){
   err=sum(y.vec!=pred) # 잘못분류
   sen=sum(pred[y.vec==1]==1) # 1이라고 한애들중 실제로 1인애들
   spc=sum(pred[y.vec==0]==0) # 0 이라고 한애들중 실제로 0인애들
+  
+  print(p.vec)
+  
   roc.obj=roc.curve(y.vec,p.vec,n.thresholds=100) 
   auc=roc.obj$auc
   ass=c(sum(y.vec==1),sum(y.vec==0),loss,info,acc,err,sen,spc,auc )  
@@ -135,8 +140,31 @@ for(id in 1:k){
   b.vec=coef(cv.fit)
   ass=rbind(ass,ass.fun(b.vec=coef(cv.fit),x.mat[set,],y.vec[set],c.val=0.5,wt=log(nrow(x.mat)))) #training sample 이용 평가 측도 #BIC
 }
+cv.ass=colSums(ass)/10
+ass
 
-colSums(ass[,-c(1,2)]) 
 
+##### measures from randomization
 
-  
+num=100 #몇번 분할할지 
+r=5
+ass=NULL
+perf=rep(0,num)
+set.seed(1234)
+cpos=(1:n)[y.vec==1]  #y가 1 인 위치
+npos=(1:n)[y.vec==0]  #y 가 0 인 위치
+for(id in 1:num){
+set=c( sample(cpos)[1:round(n/r)],sample(npos)[1:round(n/r)])   #1부터 20 ,sample(npos)[1:round(n/r)])   #1부터 20 
+ r.fit=glm(case~.,data=xy.df[-set,],family="binomial")
+ if(max(coef(r.fit))>100) perf[id]=1 # perfect fit 에 대한 indicator
+ass=rbind(ass,ass.fun(b.vec=coef(r.fit),x.mat[set,],y.vec[set],c.val=0.5,wt=log(nrow(x.mat))))
+}
+
+par(mfrow=c(1,3))
+boxplot(ass[perf==0,])
+boxplot(ass[perf==1,])
+boxplot(ass)
+
+rbind(colMeans(ass[perf==0,]),colMeans(ass[perf==1,]),colMeans(ass))
+#보통 perfect fit 인 경우는 빼도 된다
+ # 전체중  몇 %가 perfect fit 인지 
