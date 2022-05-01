@@ -1,82 +1,130 @@
-###함수 모음
-forward.fun = function(y.vec,x.mat,glm.fam=c("gaussian","binomial","poisson"),
-                       inn.cri=c("deviance","predict"),out.cri=c("inform","predict"),
-                       var.max=min(dim(x.mat)),out.stop=TRUE,inf.wt=2,trace=TRUE){ 
-  # ready 
-  inn.cri = match.arg(inn.cri); out.cri = match.arg(out.cri); glm.fam = match.arg(glm.fam);
-  n = nrow(x.mat); p = ncol(x.mat); xy.df = data.frame(y.vec,x.mat);  
-  var.max = ifelse(out.stop==TRUE,min(n,p),min(var.max,n,p)); mod.num = var.max+1
-  coef.mat = matrix(0,p+1,var.max+1); cri.vec = rep(0,var.max+1)
-  # null model 
-  fit = glm(y.vec~1,data=xy.df,family=glm.fam); 
-  if(out.cri=="inform") cri.val = fit$deviance+inf.wt  
-  cur.set = NULL; new.set = 1:p; coef.mat[c(1,cur.set+1),1] = coef(fit); cri.vec[1] = cri.val 
-  # forward process 
-  for(var.id in 1:var.max){
-    inn.cri.vec = rep(0,length(new.set))
-    for(new.id in 1:length(new.set)){
-      fit = glm(y.vec~.,data=xy.df[,c(1,c(cur.set,new.set[new.id])+1)],family=glm.fam) 
-      if(inn.cri=="deviance") inn.cri.vec[new.id] = fit$deviance 
-    }
-    fit = glm(y.vec~.,data=xy.df[,c(1,c(cur.set,new.set[which.min(inn.cri.vec)])+1)],family=glm.fam)
-    if(out.cri=="inform") cri.val = fit$deviance+inf.wt*(2+length(cur.set))
-    if(out.stop==TRUE){ if(cri.val>cri.vec[var.id]){ var.id = var.id-1; break } }
-    cur.set = c(cur.set,new.set[which.min(inn.cri.vec)]); new.set = (1:p)[-cur.set] 
-    cri.vec[var.id+1] = cri.val
-    coef.mat[c(1,cur.set+1),var.id+1] = coef(fit)
-    if(trace) cat("included variables:",cur.set,"\n")
-  }
-  # summary 
-  ret = list(coef.mat=coef.mat[,1:(var.id+1)],cri.vec=cri.vec[1:(var.id+1)])
-  return(ret)
+rm(list=ls())
+library(glmnet)
+library(ROSE)
+library(spatstat)
+library(ncpen)
+setwd("C:/Temp/data.mining")
+source("C:/Temp/data.mining/function.R")
+
+
+
+##########comparison by information ##############
+
+sen.df=read.csv("sensitivity_old.csv")
+sen.df=sen.df[1:20,1:5]
+y.vec=sen.df[,1]
+z.mat=cbind(dummify(sen.df[,2])[,-1],dummify(sen.df[,3])[,-1])
+x.mat=cbind(sen.df[,-c(1:3)],z.mat)
+
+
+
+b.mat=NULL
+
+fit=forward.fun(y.vec,x.mat,inf.wt=2,trace=T) #AIC
+opt=dim(fit$coef.mat)[2]
+b.mat=cbind(b.mat,fit$coef.mat[,opt])
+
+
+
+fit=forward.fun(y.vec,x.mat,inf.wt=log(nrow(x.mat)),trace=T) #BIC 
+opt=dim(fit$coef.mat)[2]
+b.mat=cbind(b.mat,fit$coef.mat[,opt])
+
+
+
+
+
+#cri.vec 이 AIC나 bIC 값 나오는거 
+
+#lasso+AIC
+fit=ncpen(y.vec,x.mat,penalty="lasso") 
+aic=gic.ncpen(fit,weight=2) # 모형들의 AIc 값 계산해주는거
+opt=which.min(aic$gic)
+b.mat=cbind(b.mat,fit$beta[,opt]) #AIC 로 봤을때 최고 모델 
+
+
+# SCAD+BIC
+
+fit=ncpen(y.vec,x.mat,penalty="scad")
+aic=gic.ncpen(fit,weight=log(nrow(x.mat)))
+opt=which.min(aic$gic)
+b.mat=cbind(b.mat,fit$beta[,opt])
+
+
+
+
+########comparison by independent test error
+
+sen.df=read.csv("sensitivity_old.csv")
+sen.df=sen.df[,1:5]
+y.vec=sen.df[,1]
+z.mat=cbind(dummify(sen.df[,2])[,-1],dummify(sen.df[,3])[,-1])
+x.mat=cbind(sen.df[,-c(1:3)],z.mat)
+x.mat=cbind(x.mat,x.mat[,c(1,2)]^2,matrix(runif(nrow(x.mat)*10),ncol=10))
+x.mat=as.matrix(x.mat)
+n=nrow(x.mat)
+
+
+
+
+# independent test error 
+set=sample(1:n,size=round(n/3),replace=T)  #1/3 뽑음음
+fit=forward.fun(y.vec[-set],x.mat[-set,],out.stop=F)  
+err=colMeans((y.vec[set]-cbind(1,x.mat[set,])%*%fit$coef.mat)^2) #예측은 set에 들어있는것으로 
+opt=which.min(err)
+b.mat=fit$coef.mat[,opt]  
+
+
+
+# LASSO 
+fit=ncpen(y.vec[-set],x.mat[-set,],penalty="lasso")
+err=colMeans((y.vec[set]-cbind(1,x.mat[set,])%*%fit$beta)^2) #예측은 set에 들어있는것으로 
+opt=which.min(err)
+b.mat=cbind(b.mat,fit$beta[,opt])
+
+
+
+
+# scad
+fit=ncpen(y.vec[-set],x.mat[-set,],penalty="scad")
+err=colMeans((y.vec[set]-cbind(1,x.mat[set,])%*%fit$beta)^2) #예측은 set에 들어있는것으로 
+opt=which.min(err)
+b.mat=cbind(b.mat,fit$beta[,opt])
+
+
+
+
+
+#######comparison by cross validation error
+set=split(sample(1:n),1:5)
+
+
+
+for(fid in 1:5){
+fit=forward.fun(y.vec[-set[[fid]]],x.mat[-set[[fid]],],out.stop=F) # fid 번 빼고 
+err= err + colSums((y.vec[set[[fid]]]-cbind(1,x.mat[set[[fid]],])%*%fit$coef.mat)^2)
 }
+opt=which.min(err)
+fit=forward.fun(y.vec,x.mat,out.stop=F) 
+b.mat=cbind(b.mat,fit$coef.mat[,opt])
 
 
-cv.index.fun=function(y.vec,k.val=10){
-  n=length(y.vec); m=k.val*trunc(n/k.val)
-  o.vec= order(y.vec,decreasing=T); a.vec=o.vec[1:m]; r.vec=o.vec[-(1:m)]
-  o.mat=matrix(a.vec,nrow=k.val); s.mat= apply(o.mat,2,FUN=sample)
-  o.vec[s.mat]=row(s.mat);o.vec[r.vec]=sample(1:k.val,length(r.vec))
-  return(id.vec=o.vec)
-}
+
+fit=cv.ncpen(y.vec,x.mat,penalty="lasso",n.fold=5)
+opt=which.min(fit$rmse)
+b.mat=cbind(b.mat,fit$ncpen.fit$beta[,opt])
 
 
-rand.index.fun=function(y.vec,tr.ratio=0.7,s.num=100){
-  id.mat=matrix(F,length(y.vec),s.num)
-  for(s.id in 1:s.num){ id.mat[,s.id]=cv.index.fun(y.vec,k.val=10)<=tr.ratio*10}
-  return(id.mat)
-}
+
+fit=cv.ncpen(y.vec,x.mat,penalty="scad",n.fold=5)
+opt=which.min(fit$rmse)
+b.mat=cbind(b.mat,fit$ncpen.fit$beta[,opt])
 
 
-glm.ass.fun=function(y.vec,x.mat,b.mat,mod=c("gaussian","binomial"),c.val=0.5,wt=2){
-  if(is.vector(b.mat)) b.mat=matrix(b.mat,ncol=1)
-  xb.mat=cbind(1,x.mat)%*%b.mat;
-  if(mod=="gaussian"){
-    pred=xb.mat
-    sq.loss=colSums((y.vec-xb.mat)^2)
-    abs.loss=colSums(abs(y.vec-xb.mat))
-    info=log(sq.loss)+wt*colSums(b.mat!=0)
-    ass=cbind(length(y.vec),sq.loss,abs.loss,info,colSums(b.mat!=0))
-    colnames(ass)=c("n","sq.loss","abs.loss","info","df")
-  }  else if(mod=="binomial"){
-    exb.mat=exp(xb.mat); exb.mat[exb.mat>1e+10]=1e+10; p.mat=exb.mat/(1+exb.mat)
-    pred=1*(p.mat>c.val);loss=colSums(-y.vec*xb.mat+log(1+exb.mat));info=2*loss+wt*colSums(b.mat!=0)
-    acc=colSums(y.vec==pred);err=colSums(y.vec!=pred);sen=colSums(pred[y.vec==1,,drop=F]==1);spc=colSums(pred[y.vec==0,,drop=F]==0);
-    roc.obj=apply(p.mat,2,FUN=roc.curve,response=y.vec,n.thresholds=5*nrow(x.mat),plotit=F)
-    auc=sapply(roc.obj,function(x)x[[2]])
-    ass=cbind(c.val,sum(y.vec==1),sum(y.vec==0),loss,info,acc,err,sen,spc,auc,colSums(b.mat!=0))
-    colnames(ass)=c("c.val","n1","n0","loss","info","acc","err","sen","spc","auc","df")
-  }
-  return(list(pred=pred,ass=ass))  
-}
 
 #################
 
 
-library(ROSE)
-library(spatstat)
-setwd("C:/Temp/data.mining")
-rm(list=ls())
 
 xy.df=read.csv("disease_old.csv")
   y.mat=as.matrix(dummify(xy.df[,1])[,-2,drop=F]) #drop F 하면 matrixy 유지
@@ -119,8 +167,8 @@ fit$deviance #loss에 두배임
 
 # information  aic 같은거 
 #aic -2*loglike+2df 
-aic=2*loss+ 2*length(b.vec)
 fit$deviance+2*length(b.vec)
+aic=2*loss+ 2*length(b.vec)
 # odds
 o.vec=p.vec/(1-p.vec)
 o.vec[order(o.vec,decreasing=T)] # 32번째 관측치는 odds 값이 제일 크다
@@ -214,7 +262,7 @@ for(id in 1:k){
   ass=rbind(ass,ass.fun(b.vec=coef(cv.fit),x.mat[set,],y.vec[set],c.val=0.5,wt=log(nrow(x.mat)))) #training sample 이용 평가 측도 #BIC
 }
 cv.ass=colSums(ass)/10
-ass
+
 
 
 ##### measures from randomization
@@ -287,8 +335,6 @@ nx.mat=nx.mat[,1:10]
 # error= (y-y hat)^2 , |y-yhat| 
 
 
-install.packages("glmnet")
-library(glmnet)
 
 #### estimation without tuning 
 # ready
