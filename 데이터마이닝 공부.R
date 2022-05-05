@@ -3,6 +3,8 @@ library(glmnet)
 library(ROSE)
 library(spatstat)
 library(ncpen)
+library(ncvreg)
+
 setwd("C:/Temp/data.mining")
 source("C:/Temp/data.mining/function.R")
 
@@ -11,7 +13,7 @@ source("C:/Temp/data.mining/function.R")
 ##########comparison by information ##############
 
 sen.df=read.csv("sensitivity_old.csv")
-sen.df=sen.df[1:20,1:5]
+sen.df=sen.df[,1:5]
 y.vec=sen.df[,1]
 z.mat=cbind(dummify(sen.df[,2])[,-1],dummify(sen.df[,3])[,-1])
 x.mat=cbind(sen.df[,-c(1:3)],z.mat)
@@ -60,11 +62,8 @@ sen.df=sen.df[,1:5]
 y.vec=sen.df[,1]
 z.mat=cbind(dummify(sen.df[,2])[,-1],dummify(sen.df[,3])[,-1])
 x.mat=cbind(sen.df[,-c(1:3)],z.mat)
-x.mat=cbind(x.mat,x.mat[,c(1,2)]^2,matrix(runif(nrow(x.mat)*10),ncol=10))
 x.mat=as.matrix(x.mat)
 n=nrow(x.mat)
-
-
 
 
 # independent test error 
@@ -97,16 +96,16 @@ b.mat=cbind(b.mat,fit$beta[,opt])
 
 #######comparison by cross validation error
 set=split(sample(1:n),1:5)
-
-
+err=0
 
 for(fid in 1:5){
-fit=forward.fun(y.vec[-set[[fid]]],x.mat[-set[[fid]],],out.stop=F) # fid 번 빼고 
-err= err + colSums((y.vec[set[[fid]]]-cbind(1,x.mat[set[[fid]],])%*%fit$coef.mat)^2)
+fit=forward.fun(y.vec[-set[[fid]]],x.mat[-set[[fid]],],out.stop=F) # fid 번 빼고  set에 있는 데이터 제외하고 모델 만들기
+err= err + colSums((y.vec[set[[fid]]]-cbind(1,x.mat[set[[fid]],])%*%fit$coef.mat)^2) # 그 모델 이용해서 error 값 구하기
 }
-opt=which.min(err)
-fit=forward.fun(y.vec,x.mat,out.stop=F) 
-b.mat=cbind(b.mat,fit$coef.mat[,opt])
+opt=which.min(err) #에러값이 제일 낮은 모델 찾기
+fit=forward.fun(y.vec,x.mat,out.stop=F) #원래 데이터로 모델만들기  
+b.mat=cbind(b.mat,fit$coef.mat[,opt])   #그중 cv에서 찾은 에러가 제일 낮은모델 coef 구하기 
+
 
 
 
@@ -281,7 +280,6 @@ set=c( sample(cpos)[1:round(n/r)],sample(npos)[1:round(n/r)])   #1부터 20 ,sampl
 ass=rbind(ass,ass.fun(b.vec=coef(r.fit),x.mat[set,],y.vec[set],c.val=0.5,wt=log(nrow(x.mat))))
 }
 
-par(mfrow=c(1,3))
 boxplot(ass[perf==0,])
 boxplot(ass[perf==1,])
 boxplot(ass)
@@ -300,18 +298,21 @@ rbind(colMeans(ass[perf==0,]),colMeans(ass[perf==1,]),colMeans(ass))
 # cv나 vd는 ways of tuning
 
 # assessment measure(측도) error,deviance, information, AUC
+
+
+#밑에가 training sample
 xy.df=read.csv("sensitivity_old_high.csv")
 y.vec=as.vector(xy.df$sensitivity)
 x.mat=as.matrix(cbind(dummify(xy.df[,2])[,-3],dummify(xy.df[,3])[,-2,drop=F] ,xy.df[,-c(1:3)]))
 xy.df=data.frame(y.vec,x.mat)
-x.mat=x.mat[,1:10]
 
 
+#밑에가 test sample 
 nxy.df=read.csv("sensitivity_new_high.csv")
 ny.vec=as.vector(nxy.df$sensitivity) #drop F 하면 matrixy 유지
 nx.mat=as.matrix(cbind(dummify(nxy.df[,2])[,-3],dummify(nxy.df[,3])[,-2,drop=F] ,nxy.df[,-c(1:3)]))
 nxy.df=data.frame(ny.vec,nx.mat)
-nx.mat=nx.mat[,1:10]
+
 
 #여러가지 방법으로 튜닝을 하고 어떤 값이 이 데이터에 적합한지 결정 할것이다
 
@@ -352,8 +353,6 @@ fit=glmnet(x=x.mat,y=y.vec,family="gaussian",alpha=0)
 b.mat[,"lasso"]=coef(fit)[,length(fit$lambda)]
 
 # scad 
-install.packages("ncvreg")
-library(ncpen)
 fit=ncpen(y.vec,x.mat,family="gaussian",penalty="scad")
 coef(fit) #lamda 100개 나옴 
 b.mat[,"scad"]=coef(fit)[,length(fit$lambda)]
@@ -433,22 +432,139 @@ b.mat[,"vd-lasso"]=coef(fit)[,opt]
 
 fit=ncpen(y.vec,x.mat,family="gaussian",penalty="scad")   #전체 데이터 먼저 fit 
 vd.fit=ncpen(y.vec[vd.id],x.mat[vd.id,],family="gaussian",lambda=fit$lambda) 
-ass=glm.ass.fun(y.vec[!vd.id],x.mat[!vd.id,],b.mat=coef(vd.fit),mod="gaussian")$ass
+b.id=vd.fit$lambda<=max(fit$lambda)
+ass=glm.ass.fun(y.vec[!vd.id],x.mat[!vd.id,],b.mat=coef(vd.fit)[,b.id],mod="gaussian")$ass
 opt=which.min(ass[,"abs.loss"])
 b.mat[,"vd-scad"]=coef(fit)[,opt]
 
 
+#bridge
 
-
-
+fit=ncpen(y.vec,x.mat,family="gaussian",penalty="mbridge")   #전체 데이터 먼저 fit 
+vd.fit=ncpen(y.vec[vd.id],x.mat[vd.id,],family="gaussian",lambda=fit$lambda) 
+b.id=vd.fit$lambda<=max(fit$lambda)
+ass=glm.ass.fun(y.vec[!vd.id],x.mat[!vd.id,],b.mat=coef(vd.fit)[,b.id],mod="gaussian")$ass
+opt=which.min(ass[,"abs.loss"])
+b.mat[,"vd-bridge"]=coef(fit)[,opt]
 
 
 
 
 
  # 모형을 lamda 값의 따라 여러개 만들어줌
-dim(coef(fit))
-# 변수 11개 모형 64개
 
 #fit$lambda에 대응하는 계수를 coef(fit) 이 갖고 있다 
+
+
+
+##########
+nass=glm.ass.fun(ny.vec,nx.mat,b.mat=b.mat,mod="gaussian")$ass
+sq.loss=nass[,"sq.loss"]/sum(nass[,"sq.loss"])
+plot(sq.loss)
+text(1:length(sq.loss),sq.loss+0.0001,substr(m.vec,1,4))
+abs.loss=ass[,"abs.loss"]/sum(ass[,"abs.loss"])
+points(abs.loss,col=2)
+
+nass #12가지 방법론중 100개의 여러 측면에서 가장 좋은 값 선택가능
+
+
+
+
+
+fit=glmnet(x.mat,y.vec,family="gaussian")
+ass.lasso=glm.ass.fun(ny.vec,nx.mat,b.mat=coef(fit),mod="gaussian")$ass
+plot(ass.lasso[,"sq.loss"],type="l")
+min(ass.lasso[,"sq.loss"])
+
+fit=ncpen(y.vec,x.mat,family="gaussian")
+ass.scad=glm.ass.fun(ny.vec,nx.mat,b.mat=coef(fit),mod="gaussian")$ass
+lines(ass.scad[,"sq.loss"],col=2)
+min(ass.scad[,"sq.loss"])
+
+#######로지스틱해보기 
+
+rm(list=ls())
+
+#training samplecv.id= cv.index.fun(y.vec,k.val=10) 
+
+xy.df=read.csv("disease_old_high.csv") #high diimension 한 데이터
+dim(xy.df); head(xy.df)[,1:10]
+y.vec=dummify(xy.df[,1])[,1]
+x.mat=as.matrix(xy.df[,-1])
+cv.id= cv.index.fun(y.vec,k.val=10) 
+
+#test sample
+nxy.df=read.csv("disease_new_high.csv")
+ny.vec=dummify(nxy.df[,1])[,1]
+nx.mat=as.matrix(nxy.df[,-1])
+
+
+
+# ready
+m.vec=c("ridge","lasso","scad","bridge") 
+m.vec=c(paste("err-",m.vec,sep=""),paste("dev-",m.vec,sep=""))
+b.mat=matrix(NA,nrow=1+ncol(x.mat),ncol=length(m.vec))
+colnames(b.mat)=m.vec
+
+
+#ridge
+cv.fit=cv.glmnet(x.mat,y.vec,family="binomial",fold.id=cv.id,alpha=0,type.measure="deviance")
+plot(cv.fit) #lambda 에 따른 deviance 그래프 젤작은게 1243
+opt=which.min(cv.fit$cvm)
+b.mat[,"err-ridge"]=coef(cv.fit$glmnet.fit)[,opt]
+
+cv.fit=cv.glmnet(x.mat,y.vec,family="binomial",fold.id=cv.id,alpha=0,type.measure="class")
+plot(cv.fit) 
+opt=which.min(cv.fit$cvm)
+b.mat[,"dev-ridge"]=coef(cv.fit$glmnet.fit)[,opt]
+
+
+
+#lasso
+cv.fit=cv.glmnet(x.mat,y.vec,family="binomial",fold.id=cv.id,alpha=1,type.measure="deviance")
+plot(cv.fit) 
+opt=which.min(cv.fit$cvm)
+b.mat[,"err-lasso"]=coef(cv.fit$glmnet.fit)[,opt]
+
+cv.fit=cv.glmnet(x.mat,y.vec,family="binomial",fold.id=cv.id,alpha=1,type.measure="class")
+plot(cv.fit) 
+opt=which.min(cv.fit$cvm)
+b.mat[,"dev-lasso"]=coef(cv.fit$glmnet.fit)[,opt]
+
+#scad
+cv.fit=cv.ncpen(y.vec,x.mat,family="binomial",fold.id=cv.id,penalty="scad")
+plot(cv.fit$rmse) 
+opt=which.min(cv.fit$rmse)
+b.mat[,"err-scad"]=coef(cv.fit$ncpen.fit)[,opt]
+opt=which.min(cv.fit$like)
+b.mat[,"dev-scad"]=coef(cv.fit$ncpen.fit)[,opt]
+
+#bridge
+
+
+cv.fit=cv.ncpen(y.vec,x.mat,family="binomial",fold.id=cv.id,penalty="mbridge")
+plot(cv.fit$rmse) 
+opt=which.min(cv.fit$rmse)
+b.mat[,"err-bridge"]=coef(cv.fit$ncpen.fit)[,opt]
+opt=which.min(cv.fit$like)
+b.mat[,"dev-bridge"]=coef(cv.fit$ncpen.fit)[,opt]
+
+
+
+###finial assessment based on new sample
+ass=glm.ass.fun(ny.vec,nx.mat,b.mat,mod="binomial")$ass
+
+fit=glmnet(x.mat,y.vec,family="binomial")
+ass.lasso=glm.ass.fun(ny.vec,nx.mat,coef(fit),mod="binomial")$ass
+fit=ncpen(y.vec,x.mat,family="binomial",penalty = "scad",tau=10)
+ass.scad=glm.ass.fun(ny.vec,nx.mat,coef(fit),mod="binomial")$ass
+c(min(ass.lasso[,"err"]),min(ass.scad[,"err"]))
+
+plot(ass.lasso[,"err"],type="l",);abline(h=ass[,"err"]["err-lasso"])
+lines(ass.scad[,"err"],type="l",col=2);abline(h=ass[,"err"]["err-scad"],col=2)
+
+ass.lasso
+
+
+
 
